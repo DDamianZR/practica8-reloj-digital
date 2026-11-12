@@ -79,10 +79,11 @@ struct Boton {
   bool estable;            // último estado estable (HIGH = suelto)
   bool lectura;            // última lectura cruda
   unsigned long tCambio;   // instante del último cambio crudo
-  unsigned long tRepetir;  // siguiente repetición automática
+  unsigned long tRepetir;  // siguiente repetición automática (0 = no repetir)
+  bool armado;             // true cuando se ha visto el botón suelto al menos una vez
 };
-Boton btnHora = {PIN_BTN_HORA, HIGH, HIGH, 0, 0};
-Boton btnMin  = {PIN_BTN_MIN,  HIGH, HIGH, 0, 0};
+Boton btnHora = {PIN_BTN_HORA, HIGH, HIGH, 0, 0, false};
+Boton btnMin  = {PIN_BTN_MIN,  HIGH, HIGH, 0, 0, false};
 
 // ================== LÓGICA DE CONTADORES ===================
 // Contador de horas mod 24: cuenta 00..23. Cuando llega a 24
@@ -133,6 +134,8 @@ void fijarHora(uint8_t h, uint8_t m, uint8_t s) {
 // =================== BOTONES CON ANTIRREBOTE ===============
 // Detecta el flanco de bajada (botón presionado) con 40 ms de
 // antirrebote. Si se mantiene presionado, repite cada 250 ms.
+// Un botón que ya está en LOW al encender (mal conectado) se
+// ignora hasta que se suelte, para que no cuente solo.
 const unsigned long T_REBOTE   = 40;
 const unsigned long T_ESPERA   = 600;   // antes de empezar a repetir
 const unsigned long T_REPETIR  = 250;
@@ -144,16 +147,31 @@ bool presionado(Boton &b) {
 
   if (ahora - b.tCambio >= T_REBOTE && l != b.estable) {
     b.estable = l;
-    if (l == LOW) {                       // se acaba de presionar
+    if (l == HIGH) {                      // se soltó
+      b.armado = true;
+      b.tRepetir = 0;
+    } else if (b.armado) {                // se acaba de presionar
       b.tRepetir = ahora + T_ESPERA;
       return true;
     }
   }
-  if (b.estable == LOW && (long)(ahora - b.tRepetir) >= 0) {
+  if (b.estable == LOW && b.tRepetir != 0 && (long)(ahora - b.tRepetir) >= 0) {
     b.tRepetir = ahora + T_REPETIR;       // repetición al mantener
     return true;
   }
   return false;
+}
+
+void iniciarBoton(Boton &b, const __FlashStringHelper *nombre) {
+  b.lectura = b.estable = digitalRead(b.pin);
+  b.armado = (b.estable == HIGH);
+  b.tCambio = millis();
+  if (!b.armado) {
+    Serial.print(F("AVISO: el boton "));
+    Serial.print(nombre);
+    Serial.println(F(" esta presionado al encender. Revisa su conexion"));
+    Serial.println(F("       (usa patas en diagonal). Se ignora hasta soltarlo."));
+  }
 }
 
 // ========================= SALIDAS =========================
@@ -221,6 +239,31 @@ void setup() {
   lcd.clear();
 #endif
 
+  // ---- Prueba de arranque (1.5 s): todo encendido ----
+  // Si algún LED no prende o el LCD no muestra el texto,
+  // revisa esa conexión antes de seguir.
+  Serial.println(F("Reloj digital - Practica 8"));
+  Serial.println(F("Prueba: LEDs D4..D9 y D13 encendidos 1.5 s"));
+#if USE_LEDS
+  for (uint8_t i = 0; i < 6; i++) digitalWrite(PIN_LEDS[i], HIGH);
+#endif
+  digitalWrite(PIN_CLK_LED, HIGH);
+#if TIPO_LCD
+  lcd.setCursor(0, 0); lcd.print(F("  Practica 8"));
+  lcd.setCursor(0, 1); lcd.print(F(" Reloj digital"));
+#endif
+  delay(1500);
+#if USE_LEDS
+  for (uint8_t i = 0; i < 6; i++) digitalWrite(PIN_LEDS[i], LOW);
+#endif
+  digitalWrite(PIN_CLK_LED, LOW);
+#if TIPO_LCD
+  lcd.clear();
+#endif
+
+  iniciarBoton(btnHora, F("+HORA (D2)"));
+  iniciarBoton(btnMin,  F("+MIN (D3)"));
+
 #if USE_RTC
   if (!rtc.begin()) {
     Serial.println(F("No se encontro el RTC. Revisa SDA(A4)/SCL(A5)."));
@@ -241,7 +284,6 @@ void setup() {
   fijarHora(h, m, s);
 #endif
 
-  Serial.println(F("Reloj digital - Practica 8"));
   Serial.println(F("D2 = +hora, D3 = +minuto, o escribe: T hh:mm:ss"));
   mostrar();
 }
@@ -278,11 +320,13 @@ void loop() {
 
   // ---- Ajuste de hora con botones ----
   if (presionado(btnHora)) {
+    Serial.println(F("[D2] +HORA"));
     pulsoHoras();                       // +1 hora (23 -> 00)
     fijarHora(horas(), minutos(), segundos());
     mostrar();
   }
   if (presionado(btnMin)) {
+    Serial.println(F("[D3] +MIN"));
     // +1 minuto SIN acarreo a horas (59 -> 00), y segundos a 00
     if (++uMin == 10) { uMin = 0; if (++dMin == 6) dMin = 0; }
     fijarHora(horas(), minutos(), 0);
