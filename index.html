@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Práctica 8 · Reloj digital</title>
+  <meta name="description" content="Reloj digital con Arduino UNO: simulador, circuito lógico con contadores, tabla de verdad y carta de tiempos interactivos.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css?v=1">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230e1013'/%3E%3Ctext x='16' y='22' font-family='monospace' font-size='15' text-anchor='middle' fill='%23ffb02e'%3E88%3C/text%3E%3C/svg%3E">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#inicio"><span class="brand-dot"></span>P8 · Reloj digital</a>
+    <nav class="nav" aria-label="Secciones">
+      <a href="#simulador">Simulador</a>
+      <a href="#circuito">Circuito lógico</a>
+      <a href="#tabla">Tabla de verdad</a>
+      <a href="#tiempos">Carta de tiempos</a>
+      <a href="#arduino">Arduino</a>
+      <a href="#cuestionario">Cuestionario</a>
+    </nav>
+  </header>
+
+  <main>
+    <!-- ============================ INICIO ============================ -->
+    <section id="inicio" class="hero">
+      <p class="eyebrow">Diseño de Sistemas Digitales · Práctica 8</p>
+      <h1>Reloj digital con contadores en cascada</h1>
+      <p class="lead">
+        Un reloj digital no es más que <strong>seis contadores BCD conectados en cascada</strong>:
+        unidades de segundo (mod&nbsp;10), decenas de segundo (mod&nbsp;6), unidades y decenas de minuto,
+        y un contador de horas mod&nbsp;24. Aquí lo implementamos en un <strong>Arduino UNO</strong> con dos
+        botones para ajustar la hora, y lo puedes explorar en el simulador, el circuito lógico,
+        la tabla de verdad y la carta de tiempos. Todo está sincronizado: lo que pasa en uno se ve en los demás.
+      </p>
+      <ul class="chips">
+        <li>Arduino UNO</li><li>2 pulsadores (INPUT_PULLUP)</li><li>6 LEDs · segundos en binario</li>
+        <li>LCD 16×2 I2C (opcional)</li><li>RTC DS3231/DS1307 (opcional)</li>
+      </ul>
+    </section>
+
+    <!-- ============================ SIMULADOR ============================ -->
+    <section id="simulador" class="section">
+      <div class="section-head">
+        <span class="num">01</span>
+        <div>
+          <h2>Simulador</h2>
+          <p>Réplica del programa de Arduino: mismos botones, mismas salidas (LCD, LEDs y Monitor Serie).</p>
+        </div>
+      </div>
+
+      <div class="sim-grid">
+        <div class="panel clock-panel">
+          <div class="clock" id="clock" aria-live="off"></div>
+          <div class="clock-sub">
+            <span id="clockLabel">HH : MM : SS</span>
+            <span class="clk-ind"><i id="clkDot"></i> CLK 1 Hz</span>
+          </div>
+          <div class="controls">
+            <button class="btn" id="btnPlay" type="button">⏸ Pausa</button>
+            <button class="btn" id="btnStep" type="button">+1 s (pulso)</button>
+            <div class="seg-ctl" id="speedCtl" role="group" aria-label="Velocidad">
+              <button type="button" data-speed="1" class="on">1×</button>
+              <button type="button" data-speed="10">10×</button>
+              <button type="button" data-speed="60">60×</button>
+              <button type="button" data-speed="600">600×</button>
+              <button type="button" data-speed="3600">3600×</button>
+            </div>
+          </div>
+          <div class="controls">
+            <button class="btn ghost" id="btnSync" type="button">Hora de la PC</button>
+            <button class="btn ghost" id="btnZero" type="button">00:00:00</button>
+            <button class="btn ghost" id="btn2359" type="button">23:59:50</button>
+          </div>
+        </div>
+
+        <div class="panel hw-panel">
+          <h3>Arduino UNO (virtual)</h3>
+          <div class="lcd" id="lcd" aria-label="Pantalla LCD 16x2">
+            <div class="lcd-row" id="lcd0"></div>
+            <div class="lcd-row" id="lcd1"></div>
+          </div>
+          <div class="leds-row">
+            <div class="leds" id="leds"></div>
+            <div class="led13"><span class="led" id="led13"></span><small>D13</small></div>
+          </div>
+          <div class="buttons-row">
+            <button class="pushbtn red" id="btnHora" type="button"><span></span>+HORA <small>D2</small></button>
+            <button class="pushbtn blue" id="btnMin" type="button"><span></span>+MIN <small>D3</small></button>
+          </div>
+          <p class="hint">Mantén presionado un botón para repetir (igual que en el código: 600&nbsp;ms de espera, luego cada 250&nbsp;ms). +MIN no acarrea a horas y pone los segundos en 00.</p>
+          <div class="serial">
+            <div class="serial-head">Monitor Serie · 9600 baudios</div>
+            <pre id="serialOut"></pre>
+            <form id="serialForm" class="serial-in">
+              <input id="serialInput" type="text" placeholder="T 12:30:00" autocomplete="off" aria-label="Comando serie">
+              <button class="btn small" type="submit">Enviar</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ CIRCUITO ============================ -->
+    <section id="circuito" class="section">
+      <div class="section-head">
+        <span class="num">02</span>
+        <div>
+          <h2>Circuito lógico</h2>
+          <p>Diagrama a bloques del reloj y, abajo, el detalle de cada contador con flip‑flops T. Haz clic en un bloque para ver su circuito.</p>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="cascade-wrap">
+          <div class="cascade" id="cascade"></div>
+        </div>
+        <p class="hint center">El reloj de 1 Hz entra por la derecha. Cada contador, al regresar a 0, produce un flanco de bajada en su bit más significativo, que es el reloj del contador de la izquierda.</p>
+      </div>
+
+      <div class="panel">
+        <div class="detail-head">
+          <div class="tabs" id="detailTabs" role="tablist"></div>
+          <div class="controls tight">
+            <button class="btn" id="btnStep2" type="button">Pulso CLK</button>
+            <button class="btn ghost" id="btnPlay2" type="button">⏸ Pausa</button>
+          </div>
+        </div>
+        <div class="svg-scroll"><svg id="detailSvg" class="schem" role="img" aria-label="Circuito del contador seleccionado"></svg></div>
+        <div class="legend">
+          <span><i class="sw hi"></i>1 lógico</span><span><i class="sw lo"></i>0 lógico</span>
+          <span><i class="sw rst"></i>reset activo</span>
+          <span>FF con burbuja en CLK = disparo por flanco de bajada</span>
+        </div>
+        <p class="explain" id="detailExplain"></p>
+      </div>
+    </section>
+
+    <!-- ============================ TABLA ============================ -->
+    <section id="tabla" class="section">
+      <div class="section-head">
+        <span class="num">03</span>
+        <div>
+          <h2>Tabla de verdad</h2>
+          <p>Tabla de transición de estados del contador seleccionado y del decodificador BCD a 7 segmentos. Haz clic en un renglón para cargar ese estado.</p>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="tabs" id="tableTabs" role="tablist">
+          <button type="button" data-t="trans" class="on">Transiciones del contador</button>
+          <button type="button" data-t="dec">Decodificador BCD → 7 seg</button>
+        </div>
+        <div id="tableTrans">
+          <div class="tabs sub" id="tableCounterTabs"></div>
+          <div class="table-wrap"><table class="tt" id="ttTrans"></table></div>
+        </div>
+        <div id="tableDec" hidden>
+          <div class="dec-grid">
+            <div>
+              <p class="hint">Mueve los interruptores (como tu DIP switch) o haz clic en un renglón.</p>
+              <div class="dip" id="dip"></div>
+              <div class="dec-digit" id="decDigit"></div>
+            </div>
+            <div class="table-wrap"><table class="tt" id="ttDec"></table></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ TIEMPOS ============================ -->
+    <section id="tiempos" class="section">
+      <div class="section-head">
+        <span class="num">04</span>
+        <div>
+          <h2>Carta de tiempos</h2>
+          <p>Diagrama de tiempos en vivo, como un analizador lógico. Pasa el cursor para leer los valores en cada instante.</p>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="detail-head">
+          <div class="tabs" id="timingTabs" role="tablist">
+            <button type="button" data-m="detail" class="on">Contador seleccionado</button>
+            <button type="button" data-m="cascade">Cascada completa</button>
+          </div>
+          <div class="controls tight">
+            <label class="sel">Ventana
+              <select id="winSel">
+                <option value="12">12 s</option>
+                <option value="24" selected>24 s</option>
+                <option value="48">48 s</option>
+                <option value="96">96 s</option>
+              </select>
+            </label>
+            <button class="btn ghost" id="btnFreeze" type="button">Congelar</button>
+            <button class="btn" id="btnStep3" type="button">Pulso CLK</button>
+          </div>
+        </div>
+        <div class="svg-scroll"><svg id="timingSvg" class="timing" role="img" aria-label="Carta de tiempos"></svg></div>
+        <div class="readout" id="readout">Pasa el cursor sobre la carta para ver los valores.</div>
+        <p class="explain" id="timingExplain"></p>
+      </div>
+    </section>
+
+    <!-- ============================ ARDUINO ============================ -->
+    <section id="arduino" class="section">
+      <div class="section-head">
+        <span class="num">05</span>
+        <div>
+          <h2>Implementación en Arduino</h2>
+          <p>Material, conexiones y código. Versión simplificada: sin resistencias en los botones y el RTC/LCD son opcionales.</p>
+        </div>
+      </div>
+
+      <div class="ard-grid">
+        <div class="panel">
+          <h3>Material</h3>
+          <table class="mat">
+            <thead><tr><th>Componente</th><th>Cant.</th><th>Uso</th></tr></thead>
+            <tbody>
+              <tr><td>Arduino UNO + cable USB</td><td>1</td><td>Microcontrolador y base de tiempo</td></tr>
+              <tr><td>Protoboard</td><td>1</td><td>Montaje</td></tr>
+              <tr><td>Pulsadores (push button)</td><td>2</td><td>+HORA (D2) y +MIN (D3)</td></tr>
+              <tr><td>LEDs</td><td>6</td><td>Segundos en binario (D4–D9)</td></tr>
+              <tr><td>Resistencias 220 Ω – 330 Ω</td><td>6</td><td>Limitar corriente de los LEDs</td></tr>
+              <tr><td>Cables de puente (jumpers)</td><td>~20</td><td>Conexiones</td></tr>
+              <tr class="opt"><td>LCD 16×2 con módulo I2C</td><td>1</td><td>Opcional · mostrar la hora (A4/A5)</td></tr>
+              <tr class="opt"><td>Módulo RTC DS3231 o DS1307</td><td>1</td><td>Opcional · conservar la hora sin energía</td></tr>
+            </tbody>
+          </table>
+          <p class="hint">No necesitas resistencias para los botones: el código usa <code>INPUT_PULLUP</code> (resistencia interna de ~35 kΩ a 5 V). El botón conecta el pin a GND; presionado = <code>LOW</code>. Motorreductores y DIP switch no se usan.</p>
+        </div>
+
+        <div class="panel">
+          <h3>Conexiones</h3>
+          <div class="svg-scroll"><svg id="wiringSvg" class="wiring" viewBox="0 0 640 420" role="img" aria-label="Diagrama de conexiones"></svg></div>
+          <table class="mat">
+            <thead><tr><th>Arduino</th><th>Conectar a</th></tr></thead>
+            <tbody>
+              <tr><td>D2</td><td>Pulsador +HORA → otra pata a GND</td></tr>
+              <tr><td>D3</td><td>Pulsador +MIN → otra pata a GND</td></tr>
+              <tr><td>D4 … D9</td><td>220 Ω → ánodo (pata larga) LED bit0 … bit5; cátodos a GND</td></tr>
+              <tr class="opt"><td>A4 / A5</td><td>SDA / SCL del LCD I2C y del RTC (mismo bus)</td></tr>
+              <tr class="opt"><td>5V / GND</td><td>VCC / GND del LCD I2C y del RTC</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="code-head">
+          <h3>Código · <span class="mono">reloj_digital.ino</span></h3>
+          <div class="controls tight">
+            <button class="btn" id="btnCopy" type="button">Copiar</button>
+            <a class="btn ghost" href="arduino/reloj_digital/reloj_digital.ino" download>Descargar .ino</a>
+          </div>
+        </div>
+        <ol class="steps">
+          <li>Abre el Arduino IDE, pega el código y selecciona <em>Herramientas → Placa → Arduino UNO</em> y el puerto COM.</li>
+          <li>Ajusta las opciones al inicio: <code>USE_LCD_I2C</code> (1 si tienes LCD I2C), <code>USE_RTC</code> (3231, 1307 o 0) y <code>USE_LEDS</code>.</li>
+          <li>Si activas LCD o RTC instala las librerías <em>LiquidCrystal I2C</em> (Frank de Brabander) y/o <em>RTClib</em> (Adafruit) desde el Gestor de librerías.</li>
+          <li>Sube el programa y abre el Monitor Serie a 9600 baudios. Escribe <code>T 12:30:00</code> para fijar la hora, o usa los botones.</li>
+        </ol>
+        <pre class="code" id="codeView"><code>Cargando…</code></pre>
+      </div>
+    </section>
+
+    <!-- ============================ CUESTIONARIO ============================ -->
+    <section id="cuestionario" class="section">
+      <div class="section-head">
+        <span class="num">06</span>
+        <div>
+          <h2>Cuestionario: contadores y reloj digital</h2>
+        </div>
+      </div>
+      <div class="qa">
+        <details open>
+          <summary>1. ¿Qué es un contador digital y cuál es su función principal dentro de un sistema digital?</summary>
+          <p>Es un circuito secuencial formado por flip‑flops que avanza por una secuencia fija de estados (normalmente binaria o BCD) cada vez que recibe un pulso de reloj. Su función es <strong>contar eventos o pulsos</strong>, y de ahí se derivan otros usos: dividir frecuencias (cada flip‑flop divide entre 2), medir tiempo, generar direcciones o secuencias de control y temporizar procesos. Su módulo (MOD) es el número de estados distintos que recorre antes de repetir.</p>
+        </details>
+        <details>
+          <summary>2. ¿Cuál es la diferencia entre un contador síncrono y un contador asíncrono?</summary>
+          <p>En el <strong>asíncrono (de rizo o ripple)</strong> solo el primer flip‑flop recibe el reloj externo; cada flip‑flop siguiente se dispara con la salida del anterior. Es simple pero los retardos se acumulan, los bits no cambian al mismo tiempo y aparecen estados transitorios (glitches); por eso es más lento. En el <strong>síncrono</strong> todos los flip‑flops reciben el mismo reloj y una lógica combinacional (compuertas AND en las entradas J‑K o T) decide cuáles cambian, así que todos los bits cambian a la vez: más rápido y sin estados intermedios, pero con más compuertas. El circuito de esta página usa contadores asíncronos con reset por compuerta, como el 74LS90.</p>
+        </details>
+        <details>
+          <summary>3. ¿Cuántos estados diferentes puede representar un contador de 4 bits? Explica cómo se obtiene este resultado.</summary>
+          <p><strong>16 estados</strong> (0000 a 1111, es decir 0 a 15). Cada bit tiene 2 valores posibles y los bits son independientes, así que el número de combinaciones es 2 × 2 × 2 × 2 = 2<sup>4</sup> = 16. En general, un contador de <em>n</em> bits tiene 2<sup><em>n</em></sup> estados. Un contador de décadas (BCD) usa 4 bits pero solo 10 de esos 16 estados, porque se reinicia al detectar 1010.</p>
+        </details>
+        <details>
+          <summary>4. ¿Qué función desempeña la señal de reloj (Clock) en el funcionamiento de un contador digital?</summary>
+          <p>El reloj es la señal que <strong>marca cuándo cambia el estado</strong>: los flip‑flops solo actualizan su salida en el flanco activo (de subida o de bajada), así que cada pulso de reloj hace avanzar el contador exactamente un estado. Además sincroniza al resto del sistema y su frecuencia determina la velocidad de conteo. En un reloj digital esa frecuencia debe ser exacta (1 Hz), obtenida de un oscilador de cristal dividido; en el Arduino la da su cristal de 16 MHz a través de <code>millis()</code>, o el módulo RTC con su cristal de 32.768 kHz.</p>
+        </details>
+        <details>
+          <summary>5. Describe cómo funciona un reloj digital e identifica qué contadores se necesitan para representar las unidades de segundos, minutos y horas.</summary>
+          <p>Un oscilador produce una señal de 1 Hz que entra a una cadena de contadores en cascada; la salida de cada contador (cuando regresa a cero) es el reloj del siguiente, y cada contador alimenta un decodificador BCD a 7 segmentos (p. ej. 7447/7448) que enciende su display. Los contadores son:</p>
+          <ul>
+            <li><strong>Unidades de segundo:</strong> mod 10 (0–9), 4 bits.</li>
+            <li><strong>Decenas de segundo:</strong> mod 6 (0–5), 3 bits. Junto con el anterior forman el mod 60.</li>
+            <li><strong>Unidades de minuto:</strong> mod 10, y <strong>decenas de minuto:</strong> mod 6 (otro mod 60).</li>
+            <li><strong>Horas:</strong> mod 24 (00–23) con un contador de unidades de 4 bits y uno de decenas de 2 bits; una compuerta AND detecta el 24 (decenas = 2 y unidades = 4) y reinicia ambos. Para formato de 12 h sería mod 12 (01–12).</li>
+          </ul>
+          <p>Para ajustar la hora se inyectan pulsos directamente al reloj de los contadores de minutos u horas, que es lo que hacen los botones +MIN y +HORA.</p>
+        </details>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    Práctica 8 · Reloj digital · Diseño de Sistemas Digitales · IPN
+  </footer>
+
+  <script src="app.js?v=1"></script>
+</body>
+</html>
