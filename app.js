@@ -683,7 +683,7 @@
       });
       return m;
     };
-    o += mod(300, 'LCD 16×2 I2C');
+    o += mod(300, 'LCD I2C (opción)');
     o += mod(480, 'RTC DS3231');
     svg.innerHTML = o;
   }

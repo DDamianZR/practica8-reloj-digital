@@ -12,7 +12,7 @@
 
   Salidas:
     - Monitor Serie (siempre)          -> 9600 baudios
-    - LCD 16x2 con módulo I2C (opcional) -> USE_LCD_I2C 1
+    - LCD 16x2 (TIPO_LCD): 2 = LCD normal de 16 pines, 1 = con módulo I2C
     - 6 LEDs: segundos en binario (opcional) -> USE_LEDS 1
     - LED integrado (D13): parpadea a 1 Hz (el "CLK")
 
@@ -28,8 +28,10 @@
 */
 
 // ====================== CONFIGURACIÓN ======================
-#define USE_LCD_I2C 0      // 1 si tienes LCD 16x2 con módulo I2C (PCF8574)
-#define LCD_ADDR    0x27   // si no muestra nada, prueba 0x3F
+#define TIPO_LCD    2      // 0 = sin LCD
+                           // 1 = LCD con módulo I2C atrás (4 pines: GND VCC SDA SCL)
+                           // 2 = LCD normal de 16 pines (sin módulo)
+#define LCD_ADDR    0x27   // solo I2C: si no muestra nada, prueba 0x3F
 #define USE_RTC     0      // 0 = sin RTC, 3231 = DS3231, 1307 = DS1307
 #define USE_LEDS    1      // 1 = segundos en binario en 6 LEDs (D4..D9)
 
@@ -38,14 +40,20 @@ const uint8_t PIN_BTN_HORA = 2;
 const uint8_t PIN_BTN_MIN  = 3;
 const uint8_t PIN_CLK_LED  = LED_BUILTIN;                 // D13
 const uint8_t PIN_LEDS[6]  = {4, 5, 6, 7, 8, 9};          // bit0 .. bit5
+// LCD de 16 pines (TIPO_LCD 2): RS, E, D4, D5, D6, D7
+// (los pines analógicos A0..A3 funcionan como digitales)
+const uint8_t LCD_RS = 12, LCD_E = 11, LCD_D4 = A0, LCD_D5 = A1, LCD_D6 = A2, LCD_D7 = A3;
 
 // ======================= LIBRERÍAS =========================
-#if USE_LCD_I2C || USE_RTC
+#if TIPO_LCD == 1 || USE_RTC
   #include <Wire.h>
 #endif
-#if USE_LCD_I2C
+#if TIPO_LCD == 1
   #include <LiquidCrystal_I2C.h>   // "LiquidCrystal I2C" de Frank de Brabander
   LiquidCrystal_I2C lcd(LCD_ADDR, 16, 2);
+#elif TIPO_LCD == 2
+  #include <LiquidCrystal.h>       // ya viene instalada en el Arduino IDE
+  LiquidCrystal lcd(LCD_RS, LCD_E, LCD_D4, LCD_D5, LCD_D6, LCD_D7);
 #endif
 #if USE_RTC
   #include <RTClib.h>              // "RTClib" de Adafruit
@@ -162,7 +170,7 @@ void mostrar() {
   for (int8_t i = 3; i >= 0; i--) Serial.print(bitRead(uSeg, i));
   Serial.println();
 
-#if USE_LCD_I2C
+#if TIPO_LCD
   lcd.setCursor(4, 0);
   dos(lcd, horas());   lcd.print(':');
   dos(lcd, minutos()); lcd.print(':');
@@ -204,9 +212,12 @@ void setup() {
   for (uint8_t i = 0; i < 6; i++) pinMode(PIN_LEDS[i], OUTPUT);
 #endif
 
-#if USE_LCD_I2C
+#if TIPO_LCD == 1
   lcd.init();
   lcd.backlight();
+  lcd.clear();
+#elif TIPO_LCD == 2
+  lcd.begin(16, 2);
   lcd.clear();
 #endif
 

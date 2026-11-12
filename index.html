@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=1">
+  <link rel="stylesheet" href="styles.css?v=2">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230e1013'/%3E%3Ctext x='16' y='22' font-family='monospace' font-size='15' text-anchor='middle' fill='%23ffb02e'%3E88%3C/text%3E%3C/svg%3E">
 </head>
 <body>
@@ -38,7 +38,7 @@
       </p>
       <ul class="chips">
         <li>Arduino UNO</li><li>2 pulsadores (INPUT_PULLUP)</li><li>6 LEDs · segundos en binario</li>
-        <li>LCD 16×2 I2C (opcional)</li><li>RTC DS3231/DS1307 (opcional)</li>
+        <li>LCD 16×2</li><li>RTC DS3231/DS1307 (opcional)</li>
       </ul>
     </section>
 
@@ -226,7 +226,9 @@
               <tr><td>LEDs</td><td>6</td><td>Segundos en binario (D4–D9)</td></tr>
               <tr><td>Resistencias 220 Ω – 330 Ω</td><td>6</td><td>Limitar corriente de los LEDs</td></tr>
               <tr><td>Cables de puente (jumpers)</td><td>~20</td><td>Conexiones</td></tr>
-              <tr class="opt"><td>LCD 16×2 con módulo I2C</td><td>1</td><td>Opcional · mostrar la hora (A4/A5)</td></tr>
+              <tr><td>LCD 16×2</td><td>1</td><td>Mostrar la hora (16 pines o con módulo I2C)</td></tr>
+              <tr><td>Resistencia 1 kΩ (o potenciómetro 10 kΩ)</td><td>1</td><td>Contraste del LCD de 16 pines (V0)</td></tr>
+              <tr><td>Resistencia 220 Ω</td><td>1</td><td>Luz de fondo del LCD de 16 pines</td></tr>
               <tr class="opt"><td>Módulo RTC DS3231 o DS1307</td><td>1</td><td>Opcional · conservar la hora sin energía</td></tr>
             </tbody>
           </table>
@@ -242,8 +244,30 @@
               <tr><td>D2</td><td>Pulsador +HORA → otra pata a GND</td></tr>
               <tr><td>D3</td><td>Pulsador +MIN → otra pata a GND</td></tr>
               <tr><td>D4 … D9</td><td>220 Ω → ánodo (pata larga) LED bit0 … bit5; cátodos a GND</td></tr>
-              <tr class="opt"><td>A4 / A5</td><td>SDA / SCL del LCD I2C y del RTC (mismo bus)</td></tr>
-              <tr class="opt"><td>5V / GND</td><td>VCC / GND del LCD I2C y del RTC</td></tr>
+            </tbody>
+          </table>
+          <h3 style="margin-top:18px">LCD normal de 16 pines · <code>TIPO_LCD 2</code></h3>
+          <table class="mat">
+            <thead><tr><th>Pin LCD</th><th>Conectar a</th></tr></thead>
+            <tbody>
+              <tr><td>1 VSS</td><td>GND</td></tr>
+              <tr><td>2 VDD</td><td>5V</td></tr>
+              <tr><td>3 V0 (contraste)</td><td>1 kΩ a GND · o el centro de un potenciómetro de 10 kΩ (extremos a 5V y GND)</td></tr>
+              <tr><td>4 RS</td><td>D12</td></tr>
+              <tr><td>5 RW</td><td>GND</td></tr>
+              <tr><td>6 E</td><td>D11</td></tr>
+              <tr><td>7 – 10 (D0–D3)</td><td>sin conectar</td></tr>
+              <tr><td>11 D4 · 12 D5 · 13 D6 · 14 D7</td><td>A0 · A1 · A2 · A3</td></tr>
+              <tr><td>15 A (luz +)</td><td>220 Ω → 5V</td></tr>
+              <tr><td>16 K (luz −)</td><td>GND</td></tr>
+            </tbody>
+          </table>
+          <h3 style="margin-top:18px">LCD con módulo I2C · <code>TIPO_LCD 1</code></h3>
+          <table class="mat">
+            <thead><tr><th>Módulo</th><th>Conectar a</th></tr></thead>
+            <tbody>
+              <tr><td>GND · VCC</td><td>GND · 5V</td></tr>
+              <tr><td>SDA · SCL</td><td>A4 · A5 (el RTC opcional va en los mismos pines)</td></tr>
             </tbody>
           </table>
         </div>
@@ -259,8 +283,8 @@
         </div>
         <ol class="steps">
           <li>Abre el Arduino IDE, pega el código y selecciona <em>Herramientas → Placa → Arduino UNO</em> y el puerto COM.</li>
-          <li>Ajusta las opciones al inicio: <code>USE_LCD_I2C</code> (1 si tienes LCD I2C), <code>USE_RTC</code> (3231, 1307 o 0) y <code>USE_LEDS</code>.</li>
-          <li>Si activas LCD o RTC instala las librerías <em>LiquidCrystal I2C</em> (Frank de Brabander) y/o <em>RTClib</em> (Adafruit) desde el Gestor de librerías.</li>
+          <li>Ajusta las opciones al inicio: <code>TIPO_LCD</code> (2 = LCD de 16 pines, 1 = LCD con módulo I2C, 0 = sin LCD), <code>USE_RTC</code> (3231, 1307 o 0) y <code>USE_LEDS</code>.</li>
+          <li>El LCD de 16 pines usa <em>LiquidCrystal</em>, que ya viene en el IDE. Solo si usas LCD I2C o RTC instala <em>LiquidCrystal I2C</em> (Frank de Brabander) y/o <em>RTClib</em> (Adafruit) desde el Gestor de librerías.</li>
           <li>Sube el programa y abre el Monitor Serie a 9600 baudios. Escribe <code>T 12:30:00</code> para fijar la hora, o usa los botones.</li>
         </ol>
         <pre class="code" id="codeView"><code>Cargando…</code></pre>
@@ -311,6 +335,6 @@
     Práctica 8 · Reloj digital · Diseño de Sistemas Digitales · IPN
   </footer>
 
-  <script src="app.js?v=1"></script>
+  <script src="app.js?v=2"></script>
 </body>
 </html>
